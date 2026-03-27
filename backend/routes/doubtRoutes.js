@@ -1,8 +1,14 @@
 const express = require('express');
 const router = express.Router();
-const { askDoubt, getDoubtHistory } = require('../controllers/doubtController');
+const doubtController = require('../controllers/doubtController');
 
-router.post('/ask', askDoubt);           // POST /api/v1/doubt/ask
-router.get('/history/:videoId', getDoubtHistory); // GET /api/v1/doubt/history/video123
+// GET all doubts
+router.get('/', doubtController.getAllDoubts);
+
+// POST a new doubt
+router.post('/', doubtController.createDoubt);
+
+// DELETE a doubt by ID (Notice the /:id part)
+router.delete('/:id', doubtController.deleteDoubt);
 
 module.exports = router;

@@ -1,8 +1,8 @@
 const express = require('express');
 const router = express.Router();
-const { createRoadmap, getRoadmap } = require('../controllers/roadmapController');
+const roadmapController = require('../controllers/roadmapController');
 
-router.post('/generate', createRoadmap); // POST /api/v1/roadmap/generate
-router.get('/:id', getRoadmap);          // GET /api/v1/roadmap/12345
+// POST: Generate a new roadmap based on a topic or task
+router.post('/generate', roadmapController.generateRoadmap);
 
 module.exports = router;

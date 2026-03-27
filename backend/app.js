@@ -1,29 +1,39 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
+
+// 🟢 IMPORT DATABASE CONNECTION
+const connectDB = require('./config/db');
+
 const app = express();
 
-// --- 1. Middlewares ---
-app.use(express.json()); // Allows parsing JSON body from Frontend
-app.use(cors());         // Allows Frontend to talk to Backend
+// 🟢 EXECUTE DATABASE CONNECTION
+connectDB();
 
-// --- 2. Import Routes ---
+app.use(express.json());
+app.use(cors());
+
+app.set('view engine', 'ejs');
+app.set('views', path.join(__dirname, 'views'));
+
 const authRoutes = require('./routes/authRoutes');
 const roadmapRoutes = require('./routes/roadmapRoutes');
 const doubtRoutes = require('./routes/doubtRoutes');
 
-// --- 3. Mount Routes (REST API Structure) ---
-// All auth routes will start with /api/v1/auth
-app.use('/api/v1/auth', authRoutes);
-
-// All roadmap routes will start with /api/v1/roadmap
-app.use('/api/v1/roadmap', roadmapRoutes);
-
-// All doubt routes will start with /api/v1/doubt
-app.use('/api/v1/doubt', doubtRoutes);
-
-// --- 4. Base Route for Testing ---
 app.get('/', (req, res) => {
-    res.send('API is running...');
+    res.render('index');
 });
 
-module.exports = app;
+app.get('/roadmap', (req, res) => {
+    res.render('roadmap');
+});
+
+app.use('/api/v1/auth', authRoutes);
+app.use('/api/v1/roadmap', roadmapRoutes);
+app.use('/api/v1/doubt', doubtRoutes);
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+    console.log(`Server running on address http://localhost:${PORT}`);
+});

@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Abyss - Online Tutor</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://www.youtube.com/iframe_api"></script>
+</head>
+<body class="bg-gray-950 text-gray-100 h-screen overflow-hidden flex font-sans">
+
+    <div class="w-2/3 p-4 flex flex-col gap-4 border-r border-gray-800">
+        <div class="flex items-center justify-between bg-gray-900 p-4 rounded-xl shadow-lg border border-gray-800">
+            <h1 class="text-2xl font-bold text-red-500 tracking-wider">ABYSS.</h1>
+            <div class="flex gap-2 w-1/2">
+                <input type="text" id="ytUrl" placeholder="Paste YouTube Link Here..." class="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm focus:outline-none focus:border-red-500 transition" value="https://www.youtube.com/watch?v=FjCgEbD2r4o">
+                <button onclick="loadVideo()" class="bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded-lg font-semibold transition shadow-lg shadow-red-500/30">Load</button>
+            </div>
+        </div>
+
+        <div class="flex-1 bg-black rounded-xl overflow-hidden shadow-2xl relative">
+            <div id="youtube-player" class="absolute top-0 left-0 w-full h-full"></div>
+            <div id="video-placeholder" class="absolute inset-0 flex items-center justify-center text-gray-500">
+                Paste a link and click Load to start watching.
+            </div>
+        </div>
+    </div>
+
+    <div class="w-1/3 flex flex-col bg-gray-900">
+        <div class="p-4 bg-gray-800 border-b border-gray-700 flex justify-between items-center shadow-md z-10">
+            <h2 class="font-semibold text-lg flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span> Virtual Tutor
+            </h2>
+            <button onclick="resetSession()" class="text-xs bg-gray-700 hover:bg-gray-600 px-3 py-1.5 rounded transition">Clear Chat</button>
+        </div>
+
+        <div id="chatBox" class="flex-1 p-4 overflow-y-auto flex flex-col gap-4 scroll-smooth">
+            <div class="self-start bg-gray-800 border border-gray-700 text-gray-300 rounded-xl rounded-tl-none px-4 py-3 max-w-[90%] text-sm shadow-sm">
+                <strong>System:</strong> UI is connected. Play a video and ask a doubt. I will automatically check the timestamp!
+            </div>
+        </div>
+
+        <div class="p-4 bg-gray-800 border-t border-gray-700">
+            <div class="flex gap-2">
+                <input type="text" id="queryInput" placeholder="Ask your doubt..." class="flex-1 bg-gray-900 border border-gray-700 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-red-500 transition">
+                <button onclick="sendDoubt()" id="sendBtn" class="bg-gray-100 hover:bg-white text-gray-900 px-5 py-3 rounded-lg font-bold transition flex items-center">
+                    Send
+                </button>
+            </div>
+            <div class="text-[10px] text-gray-500 mt-2 text-center">Timestamp is automatically captured from the video.</div>
+        </div>
+    </div>
+
+    <script>
+        let currentThreadId = null; 
+        const chatBox = document.getElementById('chatBox');
+        const sendBtn = document.getElementById('sendBtn');
+        const queryInput = document.getElementById('queryInput');
+        
+        // --- YOUTUBE PLAYER LOGIC ---
+        let player;
+        
+        function extractVideoID(url) {
+            const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+            const match = url.match(regExp);
+            return (match && match[2].length === 11) ? match[2] : null;
+        }
+
+        function loadVideo() {
+            const url = document.getElementById('ytUrl').value;
+            const videoId = extractVideoID(url);
+            
+            if (!videoId) {
+                alert("Invalid YouTube URL");
+                return;
+            }
+
+            document.getElementById('video-placeholder').style.display = 'none';
+            resetSession(); // Clear chat when loading a new video
+
+            if (player) {
+                player.loadVideoById(videoId);
+            } else {
+                player = new YT.Player('youtube-player', {
+                    height: '100%',
+                    width: '100%',
+                    videoId: videoId,
+                    playerVars: { 'autoplay': 1, 'playsinline': 1 }
+                });
+            }
+        }
+
+        // --- CHAT LOGIC ---
+        function appendMessage(role, text, timeContext = "") {
+            const isUser = role === 'Student';
+            const msgDiv = document.createElement('div');
+            
+            // Auto-scroll logic
+            const timeTag = timeContext ? `<span class="text-[10px] opacity-70 ml-2">@ ${timeContext}</span>` : "";
+
+            msgDiv.className = `px-4 py-3 rounded-xl max-w-[90%] text-sm shadow-md ${isUser ? 'self-end bg-red-600 text-white rounded-tr-none' : 'self-start bg-gray-800 border border-gray-700 text-gray-200 rounded-tl-none'}`;
+            msgDiv.innerHTML = `<div class="font-bold text-xs mb-1 opacity-80">${role}${timeTag}</div><p class="whitespace-pre-wrap leading-relaxed">${text}</p>`;
+            
+            chatBox.appendChild(msgDiv);
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        function resetSession() {
+            currentThreadId = null;
+            chatBox.innerHTML = `<div class="self-start bg-gray-800 border border-gray-700 text-gray-300 rounded-xl rounded-tl-none px-4 py-3 max-w-[90%] text-sm"><p><strong>System:</strong> New session started.</p></div>`;
+        }
+
+        async function sendDoubt() {
+            const query = queryInput.value.trim();
+            if (!query) return;
+
+            // GET CURRENT TIMESTAMP MAGIC
+            let currentTimestamp = "00:00";
+            if (player && player.getCurrentTime) {
+                let totalSeconds = Math.floor(player.getCurrentTime());
+                let minutes = Math.floor(totalSeconds / 60);
+                let seconds = totalSeconds % 60;
+                currentTimestamp = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+            }
+
+            appendMessage('Student', query, currentThreadId ? "Follow-up" : currentTimestamp);
+            queryInput.value = '';
+            sendBtn.disabled = true;
+            sendBtn.innerText = '...';
+
+            const payload = { query };
+            
+            if (currentThreadId) {
+                payload.threadId = currentThreadId;
+            } else {
+                payload.url = document.getElementById('ytUrl').value;
+                payload.timestamp = currentTimestamp; // <--- AUTO SYNCED!
+            }
+
+            try {
+                // Ensure this matches your route path in app.js
+                const response = await fetch('/api/v1/doubt', { 
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    currentThreadId = result.threadId; 
+                    const answerText = (result.data && result.data.answer) ? result.data.answer : "Request processed, but answer format is missing.";
+                    appendMessage('Abyss', answerText);
+                } else {
+                    appendMessage('System Error', `⚠️ ${result.message}`);
+                }
+            } catch (error) {
+                appendMessage('Network Error', `🚨 Failed to connect to server.`);
+            } finally {
+                sendBtn.disabled = false;
+                sendBtn.innerText = 'Send';
+            }
+        }
+
+        queryInput.addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') sendDoubt();
+        });
+    </script>
+</body>
+</html>
