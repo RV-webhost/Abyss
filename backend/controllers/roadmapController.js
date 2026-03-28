@@ -1,3 +1,4 @@
+// src/controllers/roadmapController.js
 const geminiService = require('../services/geminiService');
 
 const roadmapController = {
@@ -9,37 +10,38 @@ const roadmapController = {
         return res.status(400).json({ success: false, message: "Topic is required" });
       }
 
-      // 🧠 The Premium "Strict JSON" Master Prompt
-     // 🧠 The "GPS Guide" Master Prompt
+      // 🧠 The "GPS Guide" Master Prompt
       const prompt = `
-        You are a minimalist guide. The user needs a roadmap for: "${topic}".
-        Your job is to cut the noise. NO paragraphs. NO overwhelming text. 
-        Explain concepts as if you are talking to a 5-year-old, but the actions must be for a developer.
+        You are a minimalist guide. The user needs a learning roadmap for: "${topic}".
+        Cut the noise. Explain concepts like I am 5, but actions must be for a developer.
         
         RULES:
         1. Maximum 5 to 7 steps. Keep the journey short and achievable.
-        2. "concept": Explain the 'Why' in EXACTLY ONE short sentence. (Explain it like I'm 5).
-        3. "action": Tell them exactly what to build or do in EXACTLY ONE short sentence.
+        2. "concept": Explain the 'Why' in EXACTLY ONE short sentence.
+        3. "action": Tell them what to build or do in EXACTLY ONE short sentence.
         4. "videoQuery": A highly specific YouTube search to learn this step.
-        5. Return ONLY a valid JSON array. No conversational intro/outro.
+        5. "timeEstimate": Estimated time to complete (e.g., "2 Hours" or "1 Day").
+        6. You MUST return ONLY a raw JSON array. Do not use markdown formatting like \`\`\`json. Start immediately with [ and end with ].
         
         JSON SCHEMA:
         [
           {
             "step": 1,
-            "title": "Short Title (e.g., Express.js Basics)",
+            "title": "Short Title",
             "concept": "Imagine a waiter taking an order from a table to the kitchen. That's a server.",
             "action": "Write a 10-line script that prints 'Hello World' to a local webpage.",
-            "videoQuery": "Express.js hello world server for beginners"
+            "videoQuery": "Express.js hello world server",
+            "timeEstimate": "2 Hours"
           }
         ]
       `;
 
-      const aiRawResponse = await geminiService.generateAnswer(prompt);
+      let aiRawResponse = await geminiService.generateAnswer(prompt);
       
-      // 🛡️ THE BULLETPROOF PARSER: 
-      // This extracts ONLY the data between the first '[' and the last ']', ignoring all AI chit-chat.
-      let cleanJson = aiRawResponse;
+      // 🛡️ BULLETPROOF PARSER: Strip out markdown blocks if the AI disobeys
+      let cleanJson = aiRawResponse.replace(/```json/gi, '').replace(/```/g, '').trim();
+
+      // Fallback: Slice exactly from the first bracket to the last bracket
       const startIndex = cleanJson.indexOf('[');
       const endIndex = cleanJson.lastIndexOf(']');
       
@@ -61,7 +63,6 @@ const roadmapController = {
       console.error("Roadmap Generation Error:", error);
       res.status(500).json({ 
         success: false, 
-        // Sending the actual error message during development helps debugging
         message: "Failed to architect the roadmap.",
         error: error.message 
       });

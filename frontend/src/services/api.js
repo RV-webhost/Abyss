@@ -1,5 +1,7 @@
 // Change this if you ever deploy your backend to a real server!
-const BASE_URL = "http://localhost:3000/api/v1";
+// Vite Syntax
+const ROOT_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
+const BASE_URL = `${ROOT_URL.replace(/\/$/, "")}/api/v1`;
 
 const api = {
   async request(endpoint, options = {}) {

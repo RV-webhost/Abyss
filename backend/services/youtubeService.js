@@ -19,11 +19,20 @@ const fetchVideoTitle = async (url) => {
 
 const fetchTranscript = async (url) => {
   try {
-    const transcript = await YoutubeTranscript.fetchTranscript(url);
-    if (transcript.length === 0) return null;
+    // 🚨 THE SPEED FIX: Injected directly into your service layer
+    const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error("Transcript fetch timed out")), 2500)
+    );
+
+    const transcript = await Promise.race([
+        YoutubeTranscript.fetchTranscript(url),
+        timeoutPromise
+    ]);
+
+    if (!transcript || transcript.length === 0) return null;
     return transcript;
   } catch (err) {
-    console.log("⚠️ Transcript fetch failed:", err.message);
+    console.warn(`[YouTube Service Warning]: Transcript blocked or timed out. Bypassing.`);
     return null;
   }
 };

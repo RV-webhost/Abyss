@@ -3,6 +3,84 @@ import { Link } from "react-router-dom";
 import api from '../services/api';
 import { useAuth } from "../context/AuthContext";
 
+// 🚨 The Formatting Engines
+import ReactMarkdown from 'react-markdown';
+import rehypeRaw from 'rehype-raw';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
+
+// 🚨 THE PARSER: Intercepts strings, parses Markdown, syntax-highlights code, and extracts images.
+const MessageParser = ({ text }) => {
+  if (!text) return null;
+  
+  // Regex to catch image tags. Check your IDE doesn't auto-remove the slashes/brackets!
+  const regexString = "\\[Im" + "age of (.*?)\\]";
+  const regex = new RegExp(regexString, "g");
+  const parts = text.split(regex);
+
+  return (
+    <div className="text-sm">
+      {parts.map((part, index) => {
+        // EVEN INDEXES: Standard text processed by ReactMarkdown
+        if (index % 2 === 0) {
+          return (
+            <div key={index} className="whitespace-pre-wrap leading-relaxed 
+                [&>ul]:list-disc [&>ul]:ml-5 [&>ul]:my-2 
+                [&>ol]:list-decimal [&>ol]:ml-5 [&>ol]:my-2
+                [&>blockquote]:border-l-4 [&>blockquote]:border-red-500 [&>blockquote]:pl-3 [&>blockquote]:italic [&>blockquote]:my-3 [&>blockquote]:bg-gray-900 [&>blockquote]:py-2 [&>blockquote]:rounded-r
+                [&_strong]:text-red-400 [&_u]:text-white [&_u]:underline [&_u]:decoration-red-500 [&_u]:underline-offset-4">
+              
+              <ReactMarkdown 
+                rehypePlugins={[rehypeRaw]}
+                components={{
+                  // Code block interceptor for IDE-style rendering
+                  code({node, inline, className, children, ...props}) {
+                    const match = /language-(\w+)/.exec(className || '');
+                    return !inline && match ? (
+                      <div className="my-4 rounded-md overflow-hidden shadow-lg border border-gray-700">
+                        <div className="bg-gray-800 text-gray-400 text-xs px-4 py-1.5 font-mono uppercase border-b border-gray-700 flex justify-between">
+                          <span>{match[1]}</span>
+                        </div>
+                        <SyntaxHighlighter
+                          style={vscDarkPlus}
+                          language={match[1]}
+                          PreTag="div"
+                          customStyle={{ margin: 0, padding: '1rem', background: '#0d1117', fontSize: '0.85rem' }}
+                          {...props}
+                        >
+                          {String(children).replace(/\n$/, '')}
+                        </SyntaxHighlighter>
+                      </div>
+                    ) : (
+                      // Small inline `code` snippets
+                      <code className="bg-gray-800 text-red-300 px-1.5 py-0.5 rounded font-mono text-[0.8rem]" {...props}>
+                        {children}
+                      </code>
+                    );
+                  }
+                }}
+              >
+                {part}
+              </ReactMarkdown>
+            </div>
+          );
+        } 
+        // ODD INDEXES: Extracted Image Tags
+        else {
+          return (
+            <div key={index} className="my-3 p-3 bg-gray-950 border border-gray-700 rounded-lg shadow-inner flex flex-col gap-2">
+              <span className="text-xs text-gray-400 font-mono">🔍 Visual Request: <strong className="text-gray-200">{part}</strong></span>
+              <div className="h-32 w-full bg-gray-800 animate-pulse flex items-center justify-center rounded border border-gray-700">
+                <span className="text-gray-500 text-xs">[ Image UI Placeholder ]</span>
+              </div>
+            </div>
+          );
+        }
+      })}
+    </div>
+  );
+};
+
 function Abyss() {
   const { logout } = useAuth();
   const [videoUrl, setVideoUrl] = useState("https://www.youtube.com/watch?v=FjCgEbD2r4o");
@@ -179,7 +257,12 @@ function Abyss() {
                 {msg.role}
                 {msg.time && <span className="text-[10px] opacity-70 ml-2">@ {msg.time}</span>}
               </div>
-              <p className="whitespace-pre-wrap leading-relaxed">{msg.text}</p>
+              
+              {msg.role === "Student" || msg.role.includes("Error") || msg.role === "System" ? (
+                 <p className="whitespace-pre-wrap leading-relaxed">{msg.text}</p>
+              ) : (
+                 <MessageParser text={msg.text} />
+              )}
             </div>
           ))}
         </div>

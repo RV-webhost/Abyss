@@ -61,7 +61,6 @@ function Roadmap() {
           <Link to="/" className="text-sm text-gray-500 hover:text-white transition">
             Back to Tutor
           </Link>
-          {/* Add this new Logout Button */}
           <button onClick={logout} className="text-sm font-semibold text-red-500 hover:text-red-400 transition">
             Logout
           </button>
@@ -124,16 +123,29 @@ function Roadmap() {
             </div>
           ) : (
             <div className="max-w-3xl animate-fadeIn">
-              <span className="text-red-500 font-bold text-sm uppercase tracking-widest">
-                Step {activeStep.step}
-              </span>
-              <h2 className="text-5xl font-black mt-2 mb-6">{activeStep.title}</h2>
-              <p className="text-gray-400 text-xl leading-relaxed mb-8">{activeStep.description}</p>
+              
+              {/* 🚨 ADDED: Step and Time Estimate Header row */}
+              <div className="flex items-center gap-4 mb-2">
+                <span className="text-red-500 font-bold text-sm uppercase tracking-widest">
+                  Step {activeStep.step}
+                </span>
+                {activeStep.timeEstimate && (
+                  <span className="bg-gray-800 text-gray-300 text-xs px-2 py-1 rounded font-mono border border-gray-700">
+                    ⏱️ {activeStep.timeEstimate}
+                  </span>
+                )}
+              </div>
 
-              {activeStep.command && (
+              <h2 className="text-5xl font-black mt-2 mb-6">{activeStep.title}</h2>
+              
+              {/* 🚨 FIXED: Changed .description to .concept */}
+              <p className="text-gray-400 text-xl leading-relaxed mb-8">{activeStep.concept}</p>
+
+              {/* 🚨 FIXED: Changed .command to .action */}
+              {activeStep.action && (
                 <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 mb-8 relative group">
-                  <div className="text-xs text-gray-600 mb-2 font-mono uppercase">Execution Script / Command</div>
-                  <code className="text-green-400 font-mono text-lg">{activeStep.command}</code>
+                  <div className="text-xs text-gray-600 mb-2 font-mono uppercase">Execution Action</div>
+                  <code className="text-green-400 font-mono text-lg">{activeStep.action}</code>
                 </div>
               )}
 
