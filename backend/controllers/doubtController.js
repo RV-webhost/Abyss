@@ -1,9 +1,8 @@
 // src/controllers/doubtController.js
 const DoubtSession = require('../models/doubtSessionModel');
 const geminiService = require('../services/geminiService');
-const youtubeService = require('../services/youtubeService'); // 🚨 Cleanly importing the new service
+const youtubeService = require('../services/youtubeService'); 
 
-// We keep this helper here because it is specific to processing the frontend timestamp
 const timeToSeconds = (timeStr) => {
   if (!timeStr.includes(':')) return parseInt(timeStr) || 0;
   const parts = timeStr.split(':').reverse();
@@ -12,6 +11,44 @@ const timeToSeconds = (timeStr) => {
     seconds += parseInt(parts[i]) * Math.pow(60, i);
   }
   return seconds;
+};
+
+// 🚨 The high-speed context engine
+const getContextAtTimestamp = async (url, timestamp) => {
+  const transcript = await youtubeService.fetchTranscript(url);
+  if (!transcript || transcript.length === 0) return "No transcript context available.";
+
+  const targetSeconds = timeToSeconds(timestamp);
+  const startWindow = Math.max(0, targetSeconds - 30);
+  const endWindow = targetSeconds + 30;
+
+  const getSeconds = (seg) => {
+     let timeValue = seg.offset !== undefined ? seg.offset : (seg.start !== undefined ? seg.start : 0);
+     let segSeconds = parseFloat(timeValue);
+     return segSeconds > 50000 ? segSeconds / 1000 : segSeconds;
+  };
+
+  let left = 0, right = transcript.length - 1, startIndex = -1;
+  while (left <= right) {
+      const mid = Math.floor((left + right) / 2);
+      if (getSeconds(transcript[mid]) >= startWindow) {
+          startIndex = mid;
+          right = mid - 1; 
+      } else {
+          left = mid + 1;
+      }
+  }
+
+  const contextSegments = [];
+  if (startIndex !== -1) {
+      for (let i = startIndex; i < transcript.length; i++) {
+          const currentSeconds = getSeconds(transcript[i]);
+          if (currentSeconds > endWindow) break; 
+          contextSegments.push(transcript[i]);
+      }
+  }
+
+  return contextSegments.length > 0 ? contextSegments.map(seg => seg.text).join(' ') : "No transcript context available.";
 };
 
 const doubtController = {
@@ -49,26 +86,56 @@ const doubtController = {
         session.history.push({ role: "Student", text: query });
         const historyString = session.history.map(msg => `${msg.role}: "${msg.text}"`).join('\n');
 
+        let currentContext = session.contextText;
+        let currentTimestamp = session.timestamp;
+
+        if (timestamp && timestamp !== session.timestamp) {
+            currentTimestamp = timestamp;
+            currentContext = await getContextAtTimestamp(session.url, currentTimestamp);
+            session.timestamp = currentTimestamp;
+            session.contextText = currentContext;
+        }
+
         const followUpPrompt = `
 You are 'Abyss', an elite, conversational Pair Programmer and Tutor.
-Continuing a conversation about the video: "${session.videoTitle}". Paused at ${session.timestamp}.
-Context: "${session.contextText}"
+Continuing a conversation about the video: "${session.videoTitle}". 
+🚨 The student is currently paused at: ${currentTimestamp}.
+🚨 Current Transcript Context: "${currentContext}"
+
 History:
 ${historyString}
 
-Reply to the Student's latest message naturally. Ask for clarification if needed. Keep it under 100 words.`;
+Reply to the Student's latest message naturally. Answer their question based on the CURRENT Transcript Context. Keep it under 100 words.`;
 
-        let aiResponse = await geminiService.generateAnswer(followUpPrompt);
-        if (!aiResponse) aiResponse = "I missed that. Could you rephrase your question?";
+        // 🚨 STREAMING SETUP
+        res.setHeader('Content-Type', 'text/event-stream');
+        res.setHeader('Cache-Control', 'no-cache');
+        res.setHeader('Connection', 'keep-alive');
+        res.flushHeaders();
 
-        session.history.push({ role: "Abyss", text: aiResponse });
-        await session.save();
+        let fullAiResponse = "";
+        try {
+            const stream = await geminiService.generateAnswerStream(followUpPrompt);
+            for await (const chunk of stream) {
+                const chunkText = chunk.text();
+                fullAiResponse += chunkText;
+                res.write(`data: ${JSON.stringify({ text: chunkText })}\n\n`);
+            }
+            // Send done signal with threadId so frontend knows what thread this belongs to
+            res.write(`data: ${JSON.stringify({ done: true, threadId: session._id, isFollowUp: true })}\n\n`);
+            res.end();
+        } catch (error) {
+            res.write(`data: ${JSON.stringify({ error: "Stream interrupted." })}\n\n`);
+            res.end();
+            return;
+        }
 
-        return res.status(200).json({
-          success: true,
-          threadId: session._id,
-          data: { answer: aiResponse, isFollowUp: true }
-        });
+        // 🚨 FIRE-AND-FORGET DB SAVE (Executes after user already gets the response)
+        if (fullAiResponse) {
+            session.history.push({ role: "Abyss", text: fullAiResponse });
+            await session.save();
+        }
+        return; 
       }
 
       // ==========================================
@@ -76,34 +143,13 @@ Reply to the Student's latest message naturally. Ask for clarification if needed
       // ==========================================
       if (!url || !timestamp) return res.status(400).json({ success: false, message: 'URL and timestamp required.' });
 
-      // 🚨 Using your new youtubeService for clean extraction
       const videoId = youtubeService.extractVideoId(url);
       if (!videoId) return res.status(400).json({ success: false, message: 'Invalid YouTube URL.' });
 
       const videoTitle = await youtubeService.fetchVideoTitle(url);
-
-      let contextText = "No transcript context available.";
       
-      // 🚨 Calling the speed-fixed transcript scraper from your service
-      const transcript = await youtubeService.fetchTranscript(url);
-
-      if (transcript && transcript.length > 0) {
-          const targetSeconds = timeToSeconds(timestamp);
-          const startWindow = Math.max(0, targetSeconds - 30);
-          const endWindow = targetSeconds + 30;
-
-          // Sliding window algorithm to grab exactly what is on screen
-          const contextSegments = transcript.filter(seg => {
-            let timeValue = seg.offset !== undefined ? seg.offset : (seg.start !== undefined ? seg.start : 0);
-            let segSeconds = parseFloat(timeValue);
-            if (segSeconds > 50000) segSeconds = segSeconds / 1000;
-            return (segSeconds >= startWindow && segSeconds <= endWindow);
-          });
-
-          if (contextSegments.length > 0) {
-            contextText = contextSegments.map(seg => seg.text).join(' ');
-          }
-      }
+      // 🚨 Clean, 1-line context fetch using your helper
+      const contextText = await getContextAtTimestamp(url, timestamp);
       
       const prompt = `
 You are 'Abyss', an elite, conversational Pair Programmer and Tutor.
@@ -120,27 +166,47 @@ INSTRUCTIONS:
 6. NO REPETITIVE OUTROS: Answer the question and stop. Do NOT introduce yourself repeatedly. Do NOT end every message by reminding the student you are a pair programmer or offering to code a simulation.
 7. Keep the tone encouraging, direct, and under 100 words.`;
 
-      let aiResponse = await geminiService.generateAnswer(prompt);
-      
-      // Failsafe so we never save an empty string to MongoDB
-      if (!aiResponse) {
-          aiResponse = "I'm having trouble processing that right now. Can you try asking again?";
+      // 🚨 STREAMING SETUP
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+      res.flushHeaders();
+
+      let fullAiResponse = "";
+      try {
+          const stream = await geminiService.generateAnswerStream(prompt);
+          for await (const chunk of stream) {
+              const chunkText = chunk.text();
+              fullAiResponse += chunkText;
+              res.write(`data: ${JSON.stringify({ text: chunkText })}\n\n`);
+          }
+      } catch (error) {
+          res.write(`data: ${JSON.stringify({ error: "Stream interrupted." })}\n\n`);
+          res.end();
+          return;
       }
 
-      const newSession = await DoubtSession.create({
-        videoTitle, videoId, url, timestamp, contextText,
-        history: [ { role: "Student", text: query }, { role: "Abyss", text: aiResponse } ]
-      });
-
-      res.status(201).json({
-        success: true,
-        threadId: newSession._id,
-        data: { answer: aiResponse }
-      });
+      // 🚨 FIRE-AND-FORGET DB SAVE 
+      if (fullAiResponse) {
+          const newSession = await DoubtSession.create({
+            videoTitle, videoId, url, timestamp, contextText,
+            history: [ { role: "Student", text: query }, { role: "Abyss", text: fullAiResponse } ]
+          });
+          // Send the new threadId as the final chunk
+          res.write(`data: ${JSON.stringify({ done: true, threadId: newSession._id })}\n\n`);
+      } else {
+          res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+      }
+      res.end();
 
     } catch (error) {
       console.error(`[Create Doubt Error]: ${error.message}`);
-      res.status(500).json({ success: false, message: "Internal server error processing doubt." });
+      // Only send 500 if headers haven't been sent yet
+      if (!res.headersSent) {
+          res.status(500).json({ success: false, message: "Internal server error processing doubt." });
+      } else {
+          res.end();
+      }
     }
   },
 

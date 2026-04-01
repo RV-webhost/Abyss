@@ -1,32 +1,21 @@
-// Change this if you ever deploy your backend to a real server!
-// Vite Syntax
+// src/services/api.js
 const ROOT_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
 const BASE_URL = `${ROOT_URL.replace(/\/$/, "")}/api/v1`;
 
 const api = {
   async request(endpoint, options = {}) {
-    // 1. Automatically grab the token
     const token = localStorage.getItem("abyss_token");
-    
-    // 2. Set up default headers
     const headers = {
       "Content-Type": "application/json",
       ...options.headers,
     };
 
-    // 3. Attach token if it exists
-    if (token) {
-      headers["Authorization"] = `Bearer ${token}`;
-    }
+    if (token) headers["Authorization"] = `Bearer ${token}`;
 
-    const config = {
-      ...options,
-      headers,
-    };
+    const config = { ...options, headers };
 
     try {
       const response = await fetch(`${BASE_URL}${endpoint}`, config);
-      // We automatically parse the JSON here so you don't have to do it in your components
       return await response.json(); 
     } catch (error) {
       console.error(`API Error (${endpoint}):`, error);
@@ -44,6 +33,25 @@ const api = {
 
   delete(endpoint, options) {
     return this.request(endpoint, { method: "DELETE", ...options });
+  },
+
+  // 🚨 THE NEW UPGRADE: A dedicated method for reading Server-Sent Events (Streams)
+  stream(endpoint, body, options = {}) {
+    const token = localStorage.getItem("abyss_token");
+    const headers = {
+      "Content-Type": "application/json",
+      ...options.headers,
+    };
+
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+
+    // Notice we DO NOT await response.json() here. We return the raw fetch Promise.
+    return fetch(`${BASE_URL}${endpoint}`, { 
+      method: "POST", 
+      headers,
+      body: JSON.stringify(body), 
+      ...options 
+    });
   }
 };
 

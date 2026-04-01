@@ -156,13 +156,16 @@ function Abyss() {
     if (!query.trim() || isSending) return;
 
     const currentTimestamp = getCurrentTimestamp();
-    const newMsg = { 
-      role: "Student", 
-      text: query, 
-      time: threadId ? "Follow-up" : currentTimestamp 
-    };
     
-    setMessages((prev) => [...prev, newMsg]);
+    // 1. Instantly add the user's message to the UI
+    setMessages((prev) => [
+      ...prev, 
+      { role: "Student", text: query, time: threadId ? "Follow-up" : currentTimestamp }
+    ]);
+    
+    // 2. Instantly add an empty AI placeholder message to the UI
+    setMessages((prev) => [...prev, { role: "Abyss", text: "" }]);
+    
     setIsSending(true);
 
     const payload = { query };
@@ -176,16 +179,79 @@ function Abyss() {
     setQuery("");
 
     try {
-      const result = await api.post("/doubt", payload);
+      // 🚨 3. Call our new streaming API method
+      const response = await api.stream("/doubt", payload);
 
-      if (result.success) {
-        setThreadId(result.threadId);
-        setMessages((prev) => [...prev, { role: "Abyss", text: result.data?.answer || "Processed." }]);
-      } else {
-        setMessages((prev) => [...prev, { role: "System Error", text: `⚠️ ${result.message}` }]);
+      if (!response.ok) {
+        throw new Error(`Server responded with status: ${response.status}`);
+      }
+      if (!response.body) {
+        throw new Error("No readable stream available");
+      }
+
+      // 🚨 4. The Stream Reader Pipeline
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder('utf-8');
+      let aiFullResponse = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        
+        // If the stream is closed, break the loop
+        if (done) break;
+
+        // Decode the raw binary chunks into text
+        const chunk = decoder.decode(value, { stream: true });
+        
+        // Split by the double newline that SSE requires
+        const lines = chunk.split('\n\n');
+        
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const dataStr = line.replace('data: ', '');
+            
+            try {
+              const parsedData = JSON.parse(dataStr);
+              
+              // A. If we get text, append it and update the React state
+              if (parsedData.text) {
+                aiFullResponse += parsedData.text;
+                
+                setMessages(prev => {
+                  const newMessages = [...prev];
+                  // Update the very last message in the array (the AI placeholder we made earlier)
+                  newMessages[newMessages.length - 1].text = aiFullResponse;
+                  return newMessages;
+                });
+              }
+
+              // B. If we get the final thread ID, save it
+              if (parsedData.done && parsedData.threadId) {
+                  setThreadId(parsedData.threadId);
+              }
+
+              // C. Handle mid-stream backend errors gracefully
+              if (parsedData.error) {
+                 setMessages(prev => {
+                  const newMessages = [...prev];
+                  newMessages[newMessages.length - 1].text += `\n\n[Error: ${parsedData.error}]`;
+                  return newMessages;
+                });
+              }
+              
+            } catch (e) {
+              // Ignore JSON parse errors here. Sometimes chunks arrive split in half. 
+              // The next loop will catch the rest of the string.
+            }
+          }
+        }
       }
     } catch (error) {
-      setMessages((prev) => [...prev, { role: "Network Error", text: "🚨 Failed to connect to server." }]);
+      console.error("Stream failed:", error);
+      setMessages((prev) => [
+        ...prev, 
+        { role: "System Error", text: "🚨 Failed to connect to the Abyss engine." }
+      ]);
     } finally {
       setIsSending(false);
     }
