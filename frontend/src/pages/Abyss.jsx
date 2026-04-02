@@ -168,12 +168,16 @@ function Abyss() {
     
     setIsSending(true);
 
-    const payload = { query };
+   // 🚨 ALWAYS send the query and the current timestamp
+    const payload = { 
+      query, 
+      timestamp: currentTimestamp 
+    };
+
     if (threadId) {
-      payload.threadId = threadId;
+      payload.threadId = threadId; // Follow-up question
     } else {
-      payload.url = videoUrl;
-      payload.timestamp = currentTimestamp;
+      payload.url = videoUrl;      // Brand new question
     }
 
     setQuery("");
