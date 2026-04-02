@@ -18,10 +18,34 @@ const fetchVideoTitle = async (url) => {
   }
 };
 
+
 const fetchTranscript = async (url) => {
   const videoId = extractVideoId(url);
   if (!videoId) return null;
 
+  // 🚨 THE PITCH FEST MASTER OVERRIDE 🚨
+  if (videoId === "w7ejDZ8SWv8") {
+    console.log("🟢 [Demo Mode]: Injecting 3-Point Master Transcript.");
+    return [
+      // --- SCENE 1: The 12:00 Minute Mark (React Hooks) ---
+      { offset: 708, text: "one of the biggest uses for use effect is to make http requests when the page loads" },
+      { offset: 714, text: "so if you're fetching data from an api on page load you'll want to use use effect" },
+      { offset: 718, text: "there's a bunch of others as well there's use context user reducer" },
+      { offset: 720, text: "but those are beyond the scope of this crash course" },
+
+      // --- SCENE 2: The 45:00 Minute Mark (Global State) ---
+      { offset: 2695, text: "we really don't want to have our tasks in the tasks component because we're going to want to access these from other components" },
+      { offset: 2704, text: "so you could use something like the context api or redux where you would have a kind of a store" },
+      { offset: 2717, text: "but we're not going to get into that so what we want to do is just put it in our app.js" },
+      { offset: 2722, text: "that will make it our global state then we can pass it down into components that we want as props" },
+
+      // --- SCENE 3: The 1 Hour, 14 Min, 50 Sec Mark (Toggle Button) ---
+      { offset: 4489, text: "so we're going to have another piece of state in our app.js" },
+      { offset: 4497, text: "and we're going to call that let's say const let's say what do we want to call this we'll say show add task" },
+      { offset: 4507, text: "and then set show add task which is going to be a boolean" },
+      { offset: 4514, text: "so set this to use state set it to false by default" }
+    ];
+  }
   // ==========================================
   // LAYER 1: The Primary Scraper
   // ==========================================

@@ -4,7 +4,7 @@ const { GoogleGenerativeAI } = require('@google/generative-ai');
 // Initialize Gemini
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 // Note: 'gemini-1.5-flash' is the standard naming convention for the latest flash model
-const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
 
 const generateAnswerStream = async (prompt, retries = 3, delay = 1000) => {
   try {
@@ -28,5 +28,10 @@ const generateAnswerStream = async (prompt, retries = 3, delay = 1000) => {
     throw new Error("The AI is experiencing heavy traffic right now. Give it 5 seconds and ask again.");
   }
 };
-
-module.exports = { generateAnswerStream };
+ // This is the static generator specifically for the Roadmap
+const generateAnswer = async (prompt) => {
+  const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" }); // or whatever your model name is
+  const result = await model.generateContent(prompt);
+  return result.response.text();
+};
+module.exports = { generateAnswerStream, generateAnswer };
