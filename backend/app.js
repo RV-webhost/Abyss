@@ -25,11 +25,9 @@ app.use(cors({
 
 // 🟢 API ROUTES
 const authRoutes = require('./routes/authRoutes');
-const roadmapRoutes = require('./routes/roadmapRoutes');
 const doubtRoutes = require('./routes/doubtRoutes');
 
 app.use('/api/v1/auth', authRoutes);
-app.use('/api/v1/roadmap', roadmapRoutes);
 app.use('/api/v1/doubt', doubtRoutes);
 
 // 🚨 RENDER HEALTH CHECK: Render looks at the '/' route to see if your server successfully started.
