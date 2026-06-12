@@ -1,6 +1,8 @@
 require('dotenv').config();
+
 const express = require('express');
 const cors = require('cors');
+
 
 // 🟢 IMPORT DATABASE CONNECTION
 const connectDB = require('./config/db');
@@ -11,6 +13,7 @@ const app = express();
 connectDB();
 
 app.use(express.json());
+
 
 // 🚨 THE CORS SHIELD: Locks down your API so only your React frontend can talk to it
 app.use(cors({

@@ -28,10 +28,5 @@ const generateAnswerStream = async (prompt, retries = 3, delay = 1000) => {
     throw new Error("The AI is experiencing heavy traffic right now. Give it 5 seconds and ask again.");
   }
 };
- // This is the static generator specifically for the Roadmap
-const generateAnswer = async (prompt) => {
-  const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" }); // or whatever your model name is
-  const result = await model.generateContent(prompt);
-  return result.response.text();
-};
-module.exports = { generateAnswerStream, generateAnswer };
+
+module.exports = { generateAnswerStream };

@@ -4,6 +4,9 @@ import Roadmap from './pages/Roadmap';
 import Auth from './components/Auth';
 import { useAuth } from './context/AuthContext';
 
+
+
+
 // This wrapper checks for a token before rendering a page
 const ProtectedRoute = ({ children }) => {
   const { token } = useAuth();
