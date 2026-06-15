@@ -4,8 +4,12 @@ import api from '../services/api';
 
 function Auth() {
   const [isLoginView, setIsLoginView] = useState(true);
+  
+  // 🚨 FIX: Added name state
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  
   const [isLoading, setIsLoading] = useState(false);
   const { login } = useAuth();
 
@@ -13,12 +17,15 @@ function Auth() {
     e.preventDefault();
     setIsLoading(true);
     
-    // Switch between your backend routes
     const endpoint = isLoginView ? "/auth/login" : "/auth/register";
+    
+    // 🚨 FIX: Dynamically build the payload based on the view
+    const payload = isLoginView 
+      ? { email, password } 
+      : { name, email, password };
 
     try {
-      // The endpoint variable is already "/auth/login" or "/auth/register"
-      const data = await api.post(endpoint, { email, password });
+      const data = await api.post(endpoint, payload);
 
       if (data.success && data.token) {
         login(data.token); 
@@ -27,7 +34,8 @@ function Auth() {
       }
     } catch (err) {
       console.log("Auth error:", err);
-      alert("Server error during authentication");
+      // Fallback alert if the server throws a 400/500
+      alert(err.response?.data?.message || "Server error during authentication");
     } finally {
       setIsLoading(false);
     }
@@ -45,6 +53,18 @@ function Auth() {
             {isLoginView ? "Welcome back, Developer." : "Join the Abyss."}
           </h2>
         </div>
+
+        {/* 🚨 FIX: Only show the Name input if the user is registering */}
+        {!isLoginView && (
+            <input
+              type="text"
+              placeholder="Full Name"
+              required
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="bg-gray-800 border border-gray-700 rounded-xl p-4 text-white focus:outline-none focus:border-red-500 transition"
+            />
+        )}
 
         <input
           type="email"
